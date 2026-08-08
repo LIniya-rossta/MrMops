@@ -1,0 +1,15 @@
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
+
+supportedArchitectures:
+  os:
+    - current
+  cpu:
+    - current
