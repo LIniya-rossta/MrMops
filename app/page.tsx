@@ -96,6 +96,9 @@ const categories: { id: Category; label: string; icon: string }[] = [
 ];
 
 const money = new Intl.NumberFormat("ru-RU");
+const assetBase = import.meta.env.BASE_URL || "/";
+const assetUrl = (path: string) => `${assetBase.replace(/\/?$/, "/")}${path.replace(/^\/+/, "")}`;
+const orderEndpoint = import.meta.env.VITE_ORDER_API_URL || "/api/order";
 
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -184,7 +187,7 @@ export default function Home() {
     };
 
     try {
-      const response = await fetch("/api/order", {
+      const response = await fetch(orderEndpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -212,7 +215,7 @@ export default function Home() {
     <main className="store-app">
       <header className="topbar" aria-label="Шапка магазина">
         <button className="brand-button" onClick={() => scrollToId("home")} aria-label="На главную">
-          <img src="/store/mrmops-logo.jpg" alt="Mr. Mops" />
+          <img src={assetUrl("store/mrmops-logo.jpg")} alt="Mr. Mops" />
           <span>
             <b>Mr. Mops</b>
             <small>зоомагазин • Бишкек</small>
@@ -225,7 +228,7 @@ export default function Home() {
       </header>
 
       <section className="hero" id="home">
-        <img className="hero-photo" src="/store/post-2024.jpg" alt="Игрушки для собак в Mr. Mops" />
+        <img className="hero-photo" src={assetUrl("store/post-2024.jpg")} alt="Игрушки для собак в Mr. Mops" />
         <div className="hero-shade" />
         <div className="hero-copy">
           <span className="eyebrow">6 лет заботы о питомцах</span>
@@ -275,7 +278,7 @@ export default function Home() {
               <article className="product-card" key={product.id}>
                 <div className="product-image-wrap">
                   {product.badge && <span className="product-badge">{product.badge}</span>}
-                  <img src={product.image} alt={product.name} loading="lazy" />
+                  <img src={assetUrl(product.image)} alt={product.name} loading="lazy" />
                 </div>
                 <div className="product-info">
                   <p>{product.short}</p>
@@ -302,7 +305,7 @@ export default function Home() {
         <span className="kicker dark">ДОСТАВКА</span>
         <h2>Пакуем с заботой.<br />Привозим быстро.</h2>
         <div className="delivery-photo">
-          <img src="/store/post-new-1.jpg" alt="Условия доставки Mr. Mops" loading="lazy" />
+          <img src={assetUrl("store/post-new-1.jpg")} alt="Условия доставки Mr. Mops" loading="lazy" />
         </div>
         <div className="delivery-list">
           <div><b>01</b><p><strong>По Бишкеку</strong><span>Через Яндекс. Стоимость рассчитывается по адресу.</span></p></div>
@@ -347,7 +350,7 @@ export default function Home() {
       </section>
 
       <section className="contacts-section" id="contacts">
-        <img src="/store/mrmops-logo.jpg" alt="Логотип Mr. Mops" className="footer-logo" />
+        <img src={assetUrl("store/mrmops-logo.jpg")} alt="Логотип Mr. Mops" className="footer-logo" />
         <span className="kicker">МЫ РЯДОМ</span>
         <h2>Заглядывайте<br />в гости</h2>
         <p className="address">5 мкр., ул. Каралаева, 33/3<br />Ежедневно, 10:00–20:00</p>
@@ -375,7 +378,7 @@ export default function Home() {
                 <div className="cart-lines">
                   {cartLines.map((line) => (
                     <article key={line.id}>
-                      <img src={line.image} alt="" />
+                      <img src={assetUrl(line.image)} alt="" />
                       <div><h3>{line.name}</h3><span>{money.format(line.price)} сом</span></div>
                       <div className="quantity"><button onClick={() => updateQuantity(line.id, -1)} aria-label="Уменьшить количество">−</button><b>{line.quantity}</b><button onClick={() => updateQuantity(line.id, 1)} aria-label="Увеличить количество">+</button></div>
                     </article>

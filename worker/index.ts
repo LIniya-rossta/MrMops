@@ -32,7 +32,8 @@ const worker = {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/order") {
-      return handleOrder(request, env);
+      if (request.method === "OPTIONS") return corsPreflight(request);
+      return withCors(await handleOrder(request, env), request);
     }
 
     if (url.pathname === "/_vinext/image") {
@@ -164,4 +165,38 @@ function text(value: unknown, max: number): string {
 
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+}
+
+const allowedOrderOrigins = new Set([
+  "https://liniya-rossta.github.io",
+  "http://localhost:3000",
+]);
+
+function allowedOrigin(request: Request): string {
+  const origin = request.headers.get("origin") || "";
+  return allowedOrderOrigins.has(origin.toLowerCase()) ? origin : "";
+}
+
+function corsPreflight(request: Request): Response {
+  const origin = allowedOrigin(request);
+  if (!origin) return new Response(null, { status: 403 });
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "access-control-allow-origin": origin,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "content-type",
+      "access-control-max-age": "86400",
+      "vary": "Origin",
+    },
+  });
+}
+
+function withCors(response: Response, request: Request): Response {
+  const origin = allowedOrigin(request);
+  if (!origin) return response;
+  const headers = new Headers(response.headers);
+  headers.set("access-control-allow-origin", origin);
+  headers.set("vary", "Origin");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
