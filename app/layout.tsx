@@ -35,6 +35,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <meta name="color-scheme" content="light only" />
         <meta name="supported-color-schemes" content="light" />
+        <meta name="darkreader-lock" />
         <meta name="theme-color" content="#f7f2e8" />
       </head>
       <body>{children}</body>
