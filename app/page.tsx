@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ServiceCategory, studioConfig, StoreService } from "../store.config";
+import { PetProduct, petStoreConfig, ProductCategory } from "../store.config";
 
 const money = new Intl.NumberFormat("ru-RU");
 const orderEndpoint = import.meta.env.VITE_ORDER_API_URL || "/api/order";
@@ -11,7 +11,7 @@ function scrollToId(id: string) {
 }
 
 export default function Home() {
-  const [category, setCategory] = useState<ServiceCategory>("all");
+  const [category, setCategory] = useState<ProductCategory>("all");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
@@ -25,16 +25,16 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("liniya-project");
+      const saved = localStorage.getItem("pet-store-cart-v1");
       if (saved) setCart(JSON.parse(saved));
     } catch {
-      localStorage.removeItem("liniya-project");
+      localStorage.removeItem("pet-store-cart-v1");
     }
     hydrated.current = true;
   }, []);
 
   useEffect(() => {
-    if (hydrated.current) localStorage.setItem("liniya-project", JSON.stringify(cart));
+    if (hydrated.current) localStorage.setItem("pet-store-cart-v1", JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
@@ -45,25 +45,26 @@ export default function Home() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return studioConfig.services.filter((service) => {
-      const fitsCategory = category === "all" || service.category.includes(category);
-      const fitsQuery = !needle || `${service.name} ${service.short}`.toLowerCase().includes(needle);
+    return petStoreConfig.products.filter((product) => {
+      const fitsCategory = category === "all" || product.category.includes(category);
+      const fitsQuery = !needle || `${product.name} ${product.short} ${product.pack}`.toLowerCase().includes(needle);
       return fitsCategory && fitsQuery;
     });
   }, [category, query]);
 
   const cartLines = useMemo(
-    () => studioConfig.services
-      .filter((service) => cart[service.id])
-      .map((service) => ({ ...service, quantity: cart[service.id] })),
+    () => petStoreConfig.products
+      .filter((product) => cart[product.id])
+      .map((product) => ({ ...product, quantity: cart[product.id] })),
     [cart],
   );
   const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
   const subtotal = cartLines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const deliveryPrice = subtotal >= 3000 ? 0 : 250;
 
-  function addToCart(service: StoreService) {
-    setCart((current) => ({ ...current, [service.id]: (current[service.id] ?? 0) + 1 }));
-    setToast(`${service.name} — добавлено в расчёт`);
+  function addToCart(product: PetProduct) {
+    setCart((current) => ({ ...current, [product.id]: (current[product.id] ?? 0) + 1 }));
+    setToast(`${product.name} — в корзине`);
   }
 
   function updateQuantity(id: string, delta: number) {
@@ -76,6 +77,11 @@ export default function Home() {
     });
   }
 
+  function chooseCategory(nextCategory: ProductCategory) {
+    setCategory(nextCategory);
+    scrollToId("catalog");
+  }
+
   function openCheckout() {
     if (!cartLines.length) return;
     setCartOpen(false);
@@ -85,7 +91,7 @@ export default function Home() {
     setCheckoutOpen(true);
   }
 
-  async function submitRequest(event: FormEvent<HTMLFormElement>) {
+  async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!cartLines.length) return;
     setSubmitting(true);
@@ -110,84 +116,77 @@ export default function Home() {
         body: JSON.stringify(payload),
       });
       const result = (await response.json()) as { ok?: boolean; orderId?: string; error?: string };
-      if (!response.ok || !result.ok) throw new Error(result.error || "Не удалось отправить заявку");
+      if (!response.ok || !result.ok) throw new Error(result.error || "Не удалось оформить заказ");
       setOrderId(result.orderId || "");
       setCart({});
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось отправить заявку");
+      setError(requestError instanceof Error ? requestError.message : "Не удалось оформить заказ");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="agency-app">
+    <main className="pet-app">
+      <div className="announcement">БЕСПЛАТНАЯ ДОСТАВКА ПО БИШКЕКУ ОТ 3 000 СОМ <span>•</span> ЗАКАЗЫ 24/7</div>
+
       <header className="site-header" aria-label="Навигация">
         <button className="wordmark" onClick={() => scrollToId("home")} aria-label="На главную">
-          <span>{studioConfig.brand.monogram}</span>
-          <b>{studioConfig.brand.name}<small>{studioConfig.brand.subtitle}</small></b>
+          <span>{petStoreConfig.brand.monogram}</span>
+          <b>{petStoreConfig.brand.name}<small>{petStoreConfig.brand.subtitle}</small></b>
         </button>
         <nav className="desktop-nav" aria-label="Разделы сайта">
-          <button onClick={() => scrollToId("services")}>Решения</button>
-          <button onClick={() => scrollToId("process")}>Как работаем</button>
-          <button onClick={() => scrollToId("faq")}>Вопросы</button>
+          <button onClick={() => scrollToId("catalog")}>Каталог</button>
+          <button onClick={() => scrollToId("benefits")}>Почему мы</button>
+          <button onClick={() => scrollToId("faq")}>Доставка и оплата</button>
         </nav>
-        <button className="project-button" onClick={() => setCartOpen(true)} aria-label={`Расчёт проекта, позиций: ${cartCount}`}>
-          <span>Расчёт</span><b>{cartCount || "+"}</b>
+        <button className="cart-button" onClick={() => setCartOpen(true)} aria-label={`Корзина, товаров: ${cartCount}`}>
+          <span>Корзина</span><b>{cartCount || "0"}</b>
         </button>
       </header>
 
       <section className="hero" id="home">
         <div className="hero-copy">
-          <span className="eyebrow">{studioConfig.hero.eyebrow}</span>
-          <h1>ИНТЕРНЕТ-МАГАЗИН<br />ПОД <i>ВАШ БИЗНЕС</i></h1>
-          <p>{studioConfig.hero.description}</p>
+          <span className="eyebrow">{petStoreConfig.hero.eyebrow}</span>
+          <h1>ВСЁ ДЛЯ<br /><i>СЧАСТЛИВЫХ</i><br />ЛАПОК</h1>
+          <p>{petStoreConfig.hero.description}</p>
           <div className="hero-actions">
-            <button className="button-primary" onClick={() => scrollToId("services")}>Собрать проект <span>↗</span></button>
-            <button className="button-secondary" onClick={() => scrollToId("showcase")}>Что внутри</button>
+            <button className="button-primary" onClick={() => scrollToId("catalog")}>Перейти в каталог <span>↗</span></button>
+            <button className="button-secondary" onClick={() => chooseCategory("cats")}>Товары для кошек</button>
           </div>
+          <div className="hero-notes"><span>✓ Поможем выбрать</span><span>✓ Доставим сегодня</span></div>
         </div>
 
-        <div className="storefront-preview" aria-label="Пример интернет-магазина">
-          <div className="preview-browser">
-            <div className="browser-bar"><i /><i /><i /><span>yourbrand.kg</span><b>🛒 2</b></div>
-            <div className="preview-hero">
-              <span>ВАШ БРЕНД</span>
-              <h2>Товары, которые<br />хочется купить</h2>
-              <button>В каталог →</button>
-            </div>
-            <div className="preview-products">
-              <article><i className="tile-lime">01</i><span>Новинка</span><b>2 900 сом</b></article>
-              <article><i className="tile-blue">02</i><span>Хит продаж</span><b>4 500 сом</b></article>
-              <article><i className="tile-coral">03</i><span>Для бизнеса</span><b>7 200 сом</b></article>
-            </div>
-          </div>
-          <div className="order-popover"><span>✓</span><p><small>НОВАЯ ЗАЯВКА</small><b>Заказ получен</b><i>Telegram • сейчас</i></p></div>
-          <div className="growth-sticker">+ заявки</div>
+        <div className="pet-collage" aria-label="Товары для домашних животных">
+          <div className="pet-blob blob-main"><span>🐶</span><b>СОБАКАМ</b></div>
+          <div className="pet-blob blob-small"><span>🐱</span><b>КОШКАМ</b></div>
+          <div className="hero-pack pack-one"><i>MM</i><strong>MurrMix</strong><small>лосось • 1,5 кг</small></div>
+          <div className="hero-pack pack-two"><i>WH</i><strong>Wild Hills</strong><small>ягнёнок • 3 кг</small></div>
+          <div className="discount-sticker">−15%<small>на первый заказ</small></div>
+          <div className="delivery-popover"><span>✓</span><p><small>ЗАКАЗ ПРИНЯТ</small><b>Доставим сегодня</b><i>Telegram • сейчас</i></p></div>
         </div>
       </section>
 
-      <section className="proof-strip" aria-label="Преимущества">
-        <div><b>7+</b><span>дней до запуска</span></div>
-        <div><b>100%</b><span>адаптивный дизайн</span></div>
-        <div><b>24/7</b><span>приём заявок</span></div>
-        <div><b>1 файл</b><span>для смены бренда</span></div>
+      <section className="pet-links" aria-label="Выбор по питомцу">
+        {petStoreConfig.categories.slice(1).map((item) => (
+          <button key={item.id} onClick={() => chooseCategory(item.id)}><span>{item.icon}</span><b>{item.label}</b><i>→</i></button>
+        ))}
       </section>
 
-      <section className="services-section" id="services">
+      <section className="catalog-section" id="catalog">
         <div className="section-intro">
-          <div><span className="kicker">КОНСТРУКТОР ПРОЕКТА</span><h2>Выберите основу<br />и нужные модули</h2></div>
-          <p>Добавьте решения в расчёт. Итоговую стоимость и сроки подтвердим после короткого созвона.</p>
+          <div><span className="kicker">ПОПУЛЯРНОЕ ДЛЯ ПИТОМЦЕВ</span><h2>Выбирайте с заботой</h2></div>
+          <p>Товары для ежедневного ухода, питания и игр. Всё самое нужное — в одном заказе.</p>
         </div>
 
         <label className="search-box">
           <span aria-hidden="true">⌕</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти пакет или функцию…" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти корм, игрушку или уход…" />
           {query && <button onClick={() => setQuery("")} aria-label="Очистить поиск">×</button>}
         </label>
 
-        <div className="category-row" aria-label="Категории решений">
-          {studioConfig.categories.map((item) => (
+        <div className="category-row" aria-label="Категории товаров">
+          {petStoreConfig.categories.map((item) => (
             <button key={item.id} className={category === item.id ? "active" : ""} onClick={() => setCategory(item.id)} aria-pressed={category === item.id}>
               <span>{item.icon}</span>{item.label}
             </button>
@@ -195,76 +194,69 @@ export default function Home() {
         </div>
 
         {filtered.length ? (
-          <div className="service-grid">
-            {filtered.map((service) => (
-              <article className="service-card" key={service.id}>
-                <div className={`service-visual accent-${service.accent}`}>
-                  {service.badge && <span className="service-badge">{service.badge}</span>}
-                  <b>{service.symbol}</b><i>↗</i>
+          <div className="product-grid">
+            {filtered.map((product) => (
+              <article className="product-card" key={product.id}>
+                <div className={`product-visual accent-${product.accent}`}>
+                  {product.badge && <span className="product-badge">{product.badge}</span>}
+                  <div className="package-art"><i>{product.symbol}</i><small>PET CARE</small></div>
+                  <span className="pack-size">{product.pack}</span>
                 </div>
-                <div className="service-info">
-                  <p>{service.short}</p><h3>{service.name}</h3>
-                  <div><strong>от {money.format(service.price)} <small>{studioConfig.currency}</small></strong><button onClick={() => addToCart(service)} aria-label={`Добавить ${service.name} в расчёт`}>+</button></div>
+                <div className="product-info">
+                  <p>{product.short}</p><h3>{product.name}</h3>
+                  <div><strong>{money.format(product.price)} <small>{petStoreConfig.currency}</small></strong><button onClick={() => addToCart(product)} aria-label={`Добавить ${product.name} в корзину`}>+</button></div>
                 </div>
               </article>
             ))}
           </div>
         ) : (
-          <div className="empty-search"><span>⌕</span><h3>Ничего не найдено</h3><p>Сбросьте поиск или оставьте запрос — нестандартные функции тоже делаем.</p><button onClick={() => { setQuery(""); setCategory("all"); }}>Показать всё</button></div>
+          <div className="empty-search"><span>⌕</span><h3>Ничего не нашли</h3><p>Попробуйте другое название или посмотрите все товары.</p><button onClick={() => { setQuery(""); setCategory("all"); }}>Показать всё</button></div>
         )}
       </section>
 
-      <section className="showcase-section" id="showcase">
-        <div className="showcase-copy"><span className="kicker kicker-dark">ОДНА ОСНОВА — ЛЮБАЯ НИША</span><h2>Не шаблон.<br />Система продаж.</h2><p>Сайт выглядит как ваш бренд, а внутри уже готовы ключевые сценарии интернет-магазина.</p></div>
-        <div className="industry-cloud" aria-label="Подходящие сферы">
-          {studioConfig.industries.map((industry, index) => <span key={industry} className={`chip-${(index % 4) + 1}`}>{industry}</span>)}
-        </div>
-        <div className="feature-grid">
-          <article><span>01</span><h3>Каталог и поиск</h3><p>Категории, фильтры и карточки под ваш ассортимент.</p></article>
-          <article><span>02</span><h3>Корзина и заказ</h3><p>Понятный путь от товара до подтверждённой заявки.</p></article>
-          <article><span>03</span><h3>Telegram и CRM</h3><p>Менеджер получает данные клиента без ручного переноса.</p></article>
-          <article><span>04</span><h3>Оплата и доставка</h3><p>Подключаем подходящие бизнесу способы получения и оплаты.</p></article>
-        </div>
+      <section className="promo-section">
+        <div><span className="kicker kicker-dark">ЗАБОТА В КАЖДОМ ЗАКАЗЕ</span><h2>Лучшее —<br />вашему хвостику.</h2><p>Соберите корзину от 3 000 сом, и мы бесплатно доставим её по Бишкеку.</p><button className="button-primary light" onClick={() => scrollToId("catalog")}>Выбрать товары <span>↗</span></button></div>
+        <div className="promo-orbit"><span>🐾</span><i>БЕСПЛАТНО</i><b>ДОСТАВКА</b><small>от 3 000 сом</small></div>
       </section>
 
-      <section className="process-section" id="process">
-        <div className="section-intro"><div><span className="kicker">ПРОЦЕСС</span><h2>От идеи<br />до запуска</h2></div><p>Понятные этапы, фиксированный объём и демонстрация результата по ходу работы.</p></div>
-        <div className="process-list">
-          {studioConfig.process.map((step) => <article key={step.number}><b>{step.number}</b><div><h3>{step.title}</h3><p>{step.text}</p></div><span>↗</span></article>)}
+      <section className="benefits-section" id="benefits">
+        <div className="section-intro"><div><span className="kicker">ПОЧЕМУ НАМ ДОВЕРЯЮТ</span><h2>Знаем, что любят питомцы</h2></div><p>Собрали понятный сервис без лишних звонков и долгого ожидания.</p></div>
+        <div className="benefit-grid">
+          {petStoreConfig.benefits.map((item) => <article key={item.number}><span>{item.number}</span><h3>{item.title}</h3><p>{item.text}</p></article>)}
         </div>
       </section>
 
       <section className="faq-section" id="faq">
-        <span className="kicker">БЕЗ МЕЛКОГО ШРИФТА</span><h2>Частые вопросы</h2>
+        <span className="kicker">ВАЖНО ЗНАТЬ</span><h2>Доставка и оплата</h2>
         <div className="faq-list">
-          {studioConfig.faq.map((item) => <details key={item.question}><summary>{item.question}<span>+</span></summary><p>{item.answer}</p></details>)}
+          {petStoreConfig.faq.map((item) => <details key={item.question}><summary>{item.question}<span>+</span></summary><p>{item.answer}</p></details>)}
         </div>
       </section>
 
-      <section className="final-cta">
-        <span className="kicker kicker-dark">ГОТОВЫ ПОКАЗАТЬ ВАШУ ВЕРСИЮ</span>
-        <h2>Ваш бизнес может<br />продавать <i>онлайн.</i></h2>
-        <p>Соберите примерный проект — заявка придёт напрямую владельцу студии в Telegram.</p>
-        <button className="button-primary light" onClick={() => scrollToId("services")}>Рассчитать проект <span>↗</span></button>
-        <div className="footer-line"><b>{studioConfig.brand.name}</b><span>Интернет-магазины • автоматизация • поддержка</span><small>© 2026</small></div>
-      </section>
+      <footer className="store-footer">
+        <div><span className="footer-logo">{petStoreConfig.brand.monogram}</span><h2>{petStoreConfig.brand.name}</h2><p>{petStoreConfig.brand.subtitle}</p></div>
+        <div><small>КАТАЛОГ</small><button onClick={() => chooseCategory("cats")}>Кошкам</button><button onClick={() => chooseCategory("dogs")}>Собакам</button><button onClick={() => chooseCategory("care")}>Уход</button></div>
+        <div><small>ПОКУПАТЕЛЯМ</small><button onClick={() => scrollToId("faq")}>Доставка и оплата</button><button onClick={() => setCartOpen(true)}>Корзина</button><span>{petStoreConfig.brand.city}</span></div>
+        <div className="studio-credit"><small>WHITE-LABEL РЕШЕНИЕ</small><b>Сайт для зоомагазина<br />от студии «Линия роста»</b><span>© 2026</span></div>
+      </footer>
 
       <nav className="bottom-nav" aria-label="Основная навигация">
         <button onClick={() => scrollToId("home")}><span>⌂</span>Главная</button>
-        <button onClick={() => scrollToId("services")}><span>▦</span>Решения</button>
-        <button onClick={() => scrollToId("process")}><span>↗</span>Процесс</button>
-        <button onClick={() => setCartOpen(true)} className={cartCount ? "has-items" : ""}><span>＋</span>Расчёт{cartCount > 0 && <b>{cartCount}</b>}</button>
+        <button onClick={() => scrollToId("catalog")}><span>▦</span>Каталог</button>
+        <button onClick={() => setCategory("cats")}><span>♡</span>Питомцам</button>
+        <button onClick={() => setCartOpen(true)} className={cartCount ? "has-items" : ""}><span>⌑</span>Корзина{cartCount > 0 && <b>{cartCount}</b>}</button>
       </nav>
 
       {cartOpen && (
         <div className="modal-layer" role="presentation" onMouseDown={() => setCartOpen(false)}>
           <aside className="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="drawer-head"><div><span className="kicker">ВАШ ПРОЕКТ</span><h2 id="cart-title">Расчёт</h2></div><button onClick={() => setCartOpen(false)} aria-label="Закрыть расчёт">×</button></div>
+            <div className="drawer-head"><div><span className="kicker">ВАШИ ПОКУПКИ</span><h2 id="cart-title">Корзина</h2></div><button onClick={() => setCartOpen(false)} aria-label="Закрыть корзину">×</button></div>
             {cartLines.length ? <>
-              <div className="cart-lines">{cartLines.map((line) => <article key={line.id}><span className={`mini-symbol accent-${line.accent}`}>{line.symbol}</span><div><h3>{line.name}</h3><span>от {money.format(line.price)} сом</span></div><div className="quantity"><button onClick={() => updateQuantity(line.id, -1)} aria-label="Уменьшить количество">−</button><b>{line.quantity}</b><button onClick={() => updateQuantity(line.id, 1)} aria-label="Увеличить количество">+</button></div></article>)}</div>
-              <div className="cart-total"><span>Предварительно</span><strong>от {money.format(subtotal)} сом</strong><small>Точная смета после уточнения задач</small></div>
-              <button className="button-primary wide" onClick={openCheckout}>Отправить на расчёт <span>↗</span></button>
-            </> : <div className="empty-cart"><span>＋</span><h3>Проект пока пуст</h3><p>Выберите пакет и нужные функции — мы соберём предварительный расчёт.</p><button onClick={() => { setCartOpen(false); scrollToId("services"); }}>Выбрать решения</button></div>}
+              <div className="cart-lines">{cartLines.map((line) => <article key={line.id}><span className={`mini-symbol accent-${line.accent}`}>{line.symbol}</span><div><h3>{line.name}</h3><span>{money.format(line.price)} сом • {line.pack}</span></div><div className="quantity"><button onClick={() => updateQuantity(line.id, -1)} aria-label="Уменьшить количество">−</button><b>{line.quantity}</b><button onClick={() => updateQuantity(line.id, 1)} aria-label="Увеличить количество">+</button></div></article>)}</div>
+              <div className="delivery-progress"><span>{subtotal >= 3000 ? "✓ Бесплатная доставка" : `Ещё ${money.format(3000 - subtotal)} сом до бесплатной доставки`}</span><i><b style={{ width: `${Math.min(100, subtotal / 30)}%` }} /></i></div>
+              <div className="cart-total"><span>Товары</span><strong>{money.format(subtotal)} сом</strong><small>Доставка: {deliveryPrice ? `${deliveryPrice} сом` : "бесплатно"}</small></div>
+              <button className="button-primary wide" onClick={openCheckout}>Оформить заказ <span>↗</span></button>
+            </> : <div className="empty-cart"><span>🐾</span><h3>Корзина пока пустая</h3><p>Добавьте любимцу корм, лакомство или новую игрушку.</p><button onClick={() => { setCartOpen(false); scrollToId("catalog"); }}>Перейти в каталог</button></div>}
           </aside>
         </div>
       )}
@@ -272,20 +264,20 @@ export default function Home() {
       {checkoutOpen && (
         <div className="modal-layer checkout-layer" role="presentation" onMouseDown={() => !submitting && setCheckoutOpen(false)}>
           <section className="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="drawer-head"><div><span className="kicker">ПОЧТИ ГОТОВО</span><h2 id="checkout-title">Заявка</h2></div><button onClick={() => setCheckoutOpen(false)} aria-label="Закрыть форму">×</button></div>
-            {orderId ? <div className="order-success"><span>✓</span><h3>Заявка отправлена!</h3><p>Проект <b>#{orderId}</b> уже в Telegram. Свяжемся с вами, чтобы уточнить задачи.</p><button className="button-primary wide" onClick={() => setCheckoutOpen(false)}>Готово</button></div> :
-              <form onSubmit={submitRequest}>
-                <label><span>Ваше имя</span><input name="name" required maxLength={80} placeholder="Как к вам обращаться?" autoComplete="name" /></label>
+            <div className="drawer-head"><div><span className="kicker">ПОЧТИ ГОТОВО</span><h2 id="checkout-title">Оформление</h2></div><button onClick={() => setCheckoutOpen(false)} aria-label="Закрыть форму">×</button></div>
+            {orderId ? <div className="order-success"><span>✓</span><h3>Заказ оформлен!</h3><p>Заказ <b>#{orderId}</b> уже у менеджера. Скоро свяжемся для подтверждения.</p><button className="button-primary wide" onClick={() => setCheckoutOpen(false)}>Готово</button></div> :
+              <form onSubmit={submitOrder}>
+                <label><span>Имя</span><input name="name" required maxLength={80} placeholder="Как к вам обращаться?" autoComplete="name" /></label>
                 <label><span>Телефон</span><input name="phone" required maxLength={30} placeholder="+996 ___ __ __ __" inputMode="tel" autoComplete="tel" /></label>
-                <label><span>Компания или сфера</span><input name="address" required maxLength={180} placeholder="Например: магазин одежды" /></label>
-                <label><span>Формат проекта</span><select name="delivery" defaultValue="Интернет-магазин"><option>Интернет-магазин</option><option>Каталог с заявками</option><option>Корпоративный сайт</option><option>Нужна консультация</option></select></label>
-                <label><span>Ориентир по бюджету</span><select name="payment"><option>Нужно рассчитать</option><option>До 30 000 сом</option><option>30 000–60 000 сом</option><option>От 60 000 сом</option></select></label>
-                <label><span>Комментарий</span><textarea name="comment" maxLength={500} placeholder="Что продаёте и какие функции нужны?" rows={3} /></label>
+                <label><span>Получение</span><select name="delivery" defaultValue="Доставка по Бишкеку"><option>Доставка по Бишкеку</option><option>Самовывоз</option><option>Доставка в другой город</option></select></label>
+                <label><span>Оплата</span><select name="payment"><option>Перевод / QR</option><option>Наличными</option><option>При получении</option></select></label>
+                <label><span>Адрес или район</span><input name="address" required maxLength={180} placeholder="Например: 4 мкр, дом 12" autoComplete="street-address" /></label>
+                <label><span>Комментарий</span><textarea name="comment" maxLength={500} placeholder="Подъезд, этаж или пожелания к заказу" rows={3} /></label>
                 <label className="website-field" aria-hidden="true"><span>Сайт</span><input name="website" tabIndex={-1} autoComplete="off" /></label>
-                <div className="checkout-summary"><span>{cartCount} поз.</span><strong>от {money.format(subtotal)} сом</strong></div>
+                <div className="checkout-summary"><span>{cartCount} шт. • доставка {deliveryPrice ? `${deliveryPrice} сом` : "бесплатно"}</span><strong>{money.format(subtotal + deliveryPrice)} сом</strong></div>
                 {error && <p className="form-error">{error}</p>}
-                <button className="button-primary wide" disabled={submitting}>{submitting ? "Отправляем…" : "Получить расчёт"}<span>↗</span></button>
-                <small>{studioConfig.brand.telegramLabel}. Нажимая кнопку, вы соглашаетесь на обработку данных.</small>
+                <button className="button-primary wide" disabled={submitting}>{submitting ? "Отправляем…" : "Подтвердить заказ"}<span>↗</span></button>
+                <small>{petStoreConfig.brand.telegramLabel}. Нажимая кнопку, вы соглашаетесь на обработку данных.</small>
               </form>}
           </section>
         </div>

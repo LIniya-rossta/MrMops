@@ -1,7 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { serviceCatalog } from "../store.config";
+import { productCatalog } from "../store.config";
 
 interface Env {
   ASSETS: Fetcher;
@@ -86,15 +86,15 @@ async function handleOrder(request: Request, env: Env): Promise<Response> {
   const address = text(body.address, 180);
   const payment = text(body.payment, 80);
   const comment = text(body.comment, 500);
-  if (!name || phone.length < 7 || !address || !delivery) return json({ ok: false, error: "Заполните имя, телефон и компанию или сферу" }, 400);
+  if (!name || phone.length < 7 || !address || !delivery) return json({ ok: false, error: "Заполните имя, телефон и адрес или район" }, 400);
   if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 30) return json({ ok: false, error: "Корзина пуста" }, 400);
 
-  const lines: { name: string; price: number; quantity: number }[] = [];
+  const lines: { name: string; price: number; pack: string; quantity: number }[] = [];
   for (const raw of body.items) {
     if (!raw || typeof raw !== "object") continue;
     const id = text((raw as { id?: unknown }).id, 80);
     const quantity = Math.min(20, Math.max(1, Math.floor(Number((raw as { quantity?: unknown }).quantity) || 0)));
-    const product = serviceCatalog[id];
+    const product = productCatalog[id];
     if (product) lines.push({ ...product, quantity });
   }
   if (!lines.length) return json({ ok: false, error: "Товары в корзине не найдены" }, 400);
@@ -102,21 +102,24 @@ async function handleOrder(request: Request, env: Env): Promise<Response> {
   const token = env.TELEGRAM_BOT_TOKEN?.trim();
   if (!token) return json({ ok: false, error: "Канал заявок временно недоступен. Попробуйте ещё раз позже" }, 503);
   const orderId = `${new Date().toISOString().slice(2, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
-  const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
-  const itemText = lines.map((line, index) => `${index + 1}. ${line.name}\n   ${line.quantity} × ${line.price} = ${line.quantity * line.price} сом`).join("\n");
+  const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const deliveryFee = delivery === "Доставка по Бишкеку" && subtotal < 3000 ? 250 : 0;
+  const total = subtotal + deliveryFee;
+  const itemText = lines.map((line, index) => `${index + 1}. ${line.name} (${line.pack})\n   ${line.quantity} × ${line.price} = ${line.quantity * line.price} сом`).join("\n");
   const message = [
-    `🚀 НОВАЯ ЗАЯВКА #${orderId}`,
+    `🛒 НОВЫЙ ЗАКАЗ #${orderId}`,
     "",
     itemText,
     "",
-    `Предварительно: от ${total} сом`,
-    "Точная смета после уточнения задач",
+    `Товары: ${subtotal} сом`,
+    `Доставка: ${deliveryFee ? `${deliveryFee} сом` : delivery === "Самовывоз" ? "самовывоз" : "бесплатно / по тарифу"}`,
+    `ИТОГО: ${total} сом`,
     "",
     `👤 ${name}`,
     `📞 ${phone}`,
-    `🧩 ${delivery}`,
-    `🏢 ${address}`,
-    `💰 ${payment || "Нужно рассчитать"}`,
+    `🚚 ${delivery}`,
+    `📍 ${address}`,
+    `💳 ${payment || "Не указано"}`,
     comment ? `💬 ${comment}` : "",
   ].filter(Boolean).join("\n");
 
