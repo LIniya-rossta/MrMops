@@ -1,6 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { serviceCatalog } from "../store.config";
 
 interface Env {
   ASSETS: Fetcher;
@@ -53,17 +54,6 @@ const worker = {
 
 export default worker;
 
-const productCatalog: Record<string, { name: string; price: number }> = {
-  "royal-canin-sterilised": { name: "Royal Canin Sterilised, 2 кг", price: 2450 },
-  "monge-grill-pouch": { name: "Monge Grill, 85 г", price: 115 },
-  "monge-jelly": { name: "Monge Jelly, 80 г", price: 185 },
-  "mnyams-delicatesse": { name: "Мнямс Delicatesse, 200 г", price: 240 },
-  "optimeal-pouch": { name: "Optimeal Adult Cat, 85 г", price: 145 },
-  "vet-diet-recovery": { name: "Veterinary Diet Recovery, 400 г", price: 390 },
-  "doglike-puller": { name: "Doglike Puller", price: 850 },
-  "doglike-ball": { name: "Doglike Мяч, 8 см", price: 420 },
-};
-
 type OrderBody = {
   name?: unknown;
   phone?: unknown;
@@ -96,7 +86,7 @@ async function handleOrder(request: Request, env: Env): Promise<Response> {
   const address = text(body.address, 180);
   const payment = text(body.payment, 80);
   const comment = text(body.comment, 500);
-  if (!name || phone.length < 7 || !address || !delivery) return json({ ok: false, error: "Заполните имя, телефон и адрес" }, 400);
+  if (!name || phone.length < 7 || !address || !delivery) return json({ ok: false, error: "Заполните имя, телефон и компанию или сферу" }, 400);
   if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 30) return json({ ok: false, error: "Корзина пуста" }, 400);
 
   const lines: { name: string; price: number; quantity: number }[] = [];
@@ -104,29 +94,29 @@ async function handleOrder(request: Request, env: Env): Promise<Response> {
     if (!raw || typeof raw !== "object") continue;
     const id = text((raw as { id?: unknown }).id, 80);
     const quantity = Math.min(20, Math.max(1, Math.floor(Number((raw as { quantity?: unknown }).quantity) || 0)));
-    const product = productCatalog[id];
+    const product = serviceCatalog[id];
     if (product) lines.push({ ...product, quantity });
   }
   if (!lines.length) return json({ ok: false, error: "Товары в корзине не найдены" }, 400);
 
   const token = env.TELEGRAM_BOT_TOKEN?.trim();
-  if (!token) return json({ ok: false, error: "Канал заказов временно не настроен. Позвоните нам: 0505 11 22 55" }, 503);
+  if (!token) return json({ ok: false, error: "Канал заявок временно недоступен. Попробуйте ещё раз позже" }, 503);
   const orderId = `${new Date().toISOString().slice(2, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
   const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const itemText = lines.map((line, index) => `${index + 1}. ${line.name}\n   ${line.quantity} × ${line.price} = ${line.quantity * line.price} сом`).join("\n");
   const message = [
-    `🐾 НОВЫЙ ЗАКАЗ #${orderId}`,
+    `🚀 НОВАЯ ЗАЯВКА #${orderId}`,
     "",
     itemText,
     "",
-    `Итого: ${total} сом`,
-    "Доставка рассчитывается отдельно",
+    `Предварительно: от ${total} сом`,
+    "Точная смета после уточнения задач",
     "",
     `👤 ${name}`,
     `📞 ${phone}`,
-    `🚚 ${delivery}`,
-    `📍 ${address}`,
-    `💳 ${payment || "Согласовать"}`,
+    `🧩 ${delivery}`,
+    `🏢 ${address}`,
+    `💰 ${payment || "Нужно рассчитать"}`,
     comment ? `💬 ${comment}` : "",
   ].filter(Boolean).join("\n");
 
@@ -143,7 +133,7 @@ async function handleOrder(request: Request, env: Env): Promise<Response> {
     return json({ ok: true, orderId });
   } catch (error) {
     console.error("Order delivery failed", error instanceof Error ? error.message : "Unknown error");
-    return json({ ok: false, error: "Не удалось отправить заказ. Позвоните нам: 0505 11 22 55" }, 502);
+    return json({ ok: false, error: "Не удалось отправить заявку. Попробуйте ещё раз позже" }, 502);
   }
 }
 

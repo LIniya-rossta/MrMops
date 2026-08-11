@@ -1,103 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-
-type Category = "all" | "cats" | "dogs" | "food" | "care" | "toys";
-
-type Product = {
-  id: string;
-  name: string;
-  short: string;
-  price: number;
-  image: string;
-  category: Exclude<Category, "all">[];
-  badge?: string;
-};
-
-const products: Product[] = [
-  {
-    id: "royal-canin-sterilised",
-    name: "Royal Canin Sterilised",
-    short: "Сухой корм для стерилизованных кошек, 2 кг",
-    price: 2450,
-    image: "/store/post-video-cover.jpg",
-    category: ["cats", "food"],
-    badge: "Хит",
-  },
-  {
-    id: "monge-grill-pouch",
-    name: "Monge Grill",
-    short: "Влажный корм для кошек, 85 г",
-    price: 115,
-    image: "/store/post-2025-a.jpg",
-    category: ["cats", "food"],
-    badge: "Италия",
-  },
-  {
-    id: "monge-jelly",
-    name: "Monge Jelly",
-    short: "Беззерновые консервы для кошек, 80 г",
-    price: 185,
-    image: "/store/post-2025-b.jpg",
-    category: ["cats", "food"],
-  },
-  {
-    id: "mnyams-delicatesse",
-    name: "Мнямс Delicatesse",
-    short: "Паштет для кошек, 200 г",
-    price: 240,
-    image: "/store/post-2025-c.jpg",
-    category: ["cats", "food"],
-  },
-  {
-    id: "optimeal-pouch",
-    name: "Optimeal Adult Cat",
-    short: "Влажный корм для взрослых кошек, 85 г",
-    price: 145,
-    image: "/store/post-2025-d.jpg",
-    category: ["cats", "food"],
-    badge: "12 вкусов",
-  },
-  {
-    id: "vet-diet-recovery",
-    name: "Veterinary Diet Recovery",
-    short: "Ветеринарная диета для кошек и собак, 400 г",
-    price: 390,
-    image: "/store/post-2025-e.jpg",
-    category: ["cats", "dogs", "food", "care"],
-    badge: "Вет. диета",
-  },
-  {
-    id: "doglike-puller",
-    name: "Doglike Puller",
-    short: "Прочная игрушка для активных собак",
-    price: 850,
-    image: "/store/post-2024.jpg",
-    category: ["dogs", "toys"],
-    badge: "Для прогулок",
-  },
-  {
-    id: "doglike-ball",
-    name: "Doglike Мяч",
-    short: "Игрушка из безопасного материала, 8 см",
-    price: 420,
-    image: "/store/post-2024.jpg",
-    category: ["dogs", "toys"],
-  },
-];
-
-const categories: { id: Category; label: string; icon: string }[] = [
-  { id: "all", label: "Всё", icon: "✦" },
-  { id: "cats", label: "Кошкам", icon: "🐈" },
-  { id: "dogs", label: "Собакам", icon: "🐕" },
-  { id: "food", label: "Корма", icon: "🥣" },
-  { id: "toys", label: "Игрушки", icon: "●" },
-  { id: "care", label: "Уход", icon: "✚" },
-];
+import { ServiceCategory, studioConfig, StoreService } from "../store.config";
 
 const money = new Intl.NumberFormat("ru-RU");
-const assetBase = import.meta.env.BASE_URL || "/";
-const assetUrl = (path: string) => `${assetBase.replace(/\/?$/, "/")}${path.replace(/^\/+/, "")}`;
 const orderEndpoint = import.meta.env.VITE_ORDER_API_URL || "/api/order";
 
 function scrollToId(id: string) {
@@ -105,7 +11,7 @@ function scrollToId(id: string) {
 }
 
 export default function Home() {
-  const [category, setCategory] = useState<Category>("all");
+  const [category, setCategory] = useState<ServiceCategory>("all");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
@@ -119,16 +25,16 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("mrmops-cart");
+      const saved = localStorage.getItem("liniya-project");
       if (saved) setCart(JSON.parse(saved));
     } catch {
-      localStorage.removeItem("mrmops-cart");
+      localStorage.removeItem("liniya-project");
     }
     hydrated.current = true;
   }, []);
 
   useEffect(() => {
-    if (hydrated.current) localStorage.setItem("mrmops-cart", JSON.stringify(cart));
+    if (hydrated.current) localStorage.setItem("liniya-project", JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
@@ -139,23 +45,25 @@ export default function Home() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return products.filter((product) => {
-      const fitsCategory = category === "all" || product.category.includes(category);
-      const fitsQuery = !needle || `${product.name} ${product.short}`.toLowerCase().includes(needle);
+    return studioConfig.services.filter((service) => {
+      const fitsCategory = category === "all" || service.category.includes(category);
+      const fitsQuery = !needle || `${service.name} ${service.short}`.toLowerCase().includes(needle);
       return fitsCategory && fitsQuery;
     });
   }, [category, query]);
 
   const cartLines = useMemo(
-    () => products.filter((product) => cart[product.id]).map((product) => ({ ...product, quantity: cart[product.id] })),
+    () => studioConfig.services
+      .filter((service) => cart[service.id])
+      .map((service) => ({ ...service, quantity: cart[service.id] })),
     [cart],
   );
   const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
   const subtotal = cartLines.reduce((sum, line) => sum + line.price * line.quantity, 0);
 
-  function addToCart(product: Product) {
-    setCart((current) => ({ ...current, [product.id]: (current[product.id] ?? 0) + 1 }));
-    setToast(`${product.name} — в корзине`);
+  function addToCart(service: StoreService) {
+    setCart((current) => ({ ...current, [service.id]: (current[service.id] ?? 0) + 1 }));
+    setToast(`${service.name} — добавлено в расчёт`);
   }
 
   function updateQuantity(id: string, delta: number) {
@@ -168,7 +76,16 @@ export default function Home() {
     });
   }
 
-  async function submitOrder(event: FormEvent<HTMLFormElement>) {
+  function openCheckout() {
+    if (!cartLines.length) return;
+    setCartOpen(false);
+    setOrderId("");
+    setError("");
+    formStartedAt.current = Date.now();
+    setCheckoutOpen(true);
+  }
+
+  async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!cartLines.length) return;
     setSubmitting(true);
@@ -193,203 +110,161 @@ export default function Home() {
         body: JSON.stringify(payload),
       });
       const result = (await response.json()) as { ok?: boolean; orderId?: string; error?: string };
-      if (!response.ok || !result.ok) throw new Error(result.error || "Не удалось отправить заказ");
+      if (!response.ok || !result.ok) throw new Error(result.error || "Не удалось отправить заявку");
       setOrderId(result.orderId || "");
       setCart({});
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось отправить заказ");
+      setError(requestError instanceof Error ? requestError.message : "Не удалось отправить заявку");
     } finally {
       setSubmitting(false);
     }
   }
 
-  function openCheckout() {
-    setCartOpen(false);
-    setOrderId("");
-    setError("");
-    formStartedAt.current = Date.now();
-    setCheckoutOpen(true);
-  }
-
   return (
-    <main className="store-app">
-      <header className="topbar" aria-label="Шапка магазина">
-        <button className="brand-button" onClick={() => scrollToId("home")} aria-label="На главную">
-          <img src={assetUrl("store/mrmops-logo.jpg")} alt="Mr. Mops" />
-          <span>
-            <b>Mr. Mops</b>
-            <small>зоомагазин • Бишкек</small>
-          </span>
+    <main className="agency-app">
+      <header className="site-header" aria-label="Навигация">
+        <button className="wordmark" onClick={() => scrollToId("home")} aria-label="На главную">
+          <span>{studioConfig.brand.monogram}</span>
+          <b>{studioConfig.brand.name}<small>{studioConfig.brand.subtitle}</small></b>
         </button>
-        <button className="cart-button" onClick={() => setCartOpen(true)} aria-label={`Корзина, товаров: ${cartCount}`}>
-          <span aria-hidden="true">🛍</span>
-          {cartCount > 0 && <b>{cartCount}</b>}
+        <nav className="desktop-nav" aria-label="Разделы сайта">
+          <button onClick={() => scrollToId("services")}>Решения</button>
+          <button onClick={() => scrollToId("process")}>Как работаем</button>
+          <button onClick={() => scrollToId("faq")}>Вопросы</button>
+        </nav>
+        <button className="project-button" onClick={() => setCartOpen(true)} aria-label={`Расчёт проекта, позиций: ${cartCount}`}>
+          <span>Расчёт</span><b>{cartCount || "+"}</b>
         </button>
       </header>
 
       <section className="hero" id="home">
-        <img className="hero-photo" src={assetUrl("store/post-2024.jpg")} alt="Игрушки для собак в Mr. Mops" />
-        <div className="hero-shade" />
         <div className="hero-copy">
-          <span className="eyebrow">6 лет заботы о питомцах</span>
-          <h1>ВСЁ ДЛЯ ТЕХ,<br />КОГО ВЫ <i>ЛЮБИТЕ</i></h1>
-          <p>Корма, игрушки, уход и аксессуары — доставим по Бишкеку.</p>
-          <button onClick={() => scrollToId("catalog")}>Выбрать товары <span>→</span></button>
+          <span className="eyebrow">{studioConfig.hero.eyebrow}</span>
+          <h1>ИНТЕРНЕТ-МАГАЗИН<br />ПОД <i>ВАШ БИЗНЕС</i></h1>
+          <p>{studioConfig.hero.description}</p>
+          <div className="hero-actions">
+            <button className="button-primary" onClick={() => scrollToId("services")}>Собрать проект <span>↗</span></button>
+            <button className="button-secondary" onClick={() => scrollToId("showcase")}>Что внутри</button>
+          </div>
+        </div>
+
+        <div className="storefront-preview" aria-label="Пример интернет-магазина">
+          <div className="preview-browser">
+            <div className="browser-bar"><i /><i /><i /><span>yourbrand.kg</span><b>🛒 2</b></div>
+            <div className="preview-hero">
+              <span>ВАШ БРЕНД</span>
+              <h2>Товары, которые<br />хочется купить</h2>
+              <button>В каталог →</button>
+            </div>
+            <div className="preview-products">
+              <article><i className="tile-lime">01</i><span>Новинка</span><b>2 900 сом</b></article>
+              <article><i className="tile-blue">02</i><span>Хит продаж</span><b>4 500 сом</b></article>
+              <article><i className="tile-coral">03</i><span>Для бизнеса</span><b>7 200 сом</b></article>
+            </div>
+          </div>
+          <div className="order-popover"><span>✓</span><p><small>НОВАЯ ЗАЯВКА</small><b>Заказ получен</b><i>Telegram • сейчас</i></p></div>
+          <div className="growth-sticker">+ заявки</div>
         </div>
       </section>
 
-      <section className="trust-strip" aria-label="Преимущества магазина">
-        <div><b>4.8</b><span>рейтинг в 2ГИС</span></div>
-        <div><b>10:00–20:00</b><span>без выходных</span></div>
-        <div><b>Сегодня</b><span>доставка по городу</span></div>
+      <section className="proof-strip" aria-label="Преимущества">
+        <div><b>7+</b><span>дней до запуска</span></div>
+        <div><b>100%</b><span>адаптивный дизайн</span></div>
+        <div><b>24/7</b><span>приём заявок</span></div>
+        <div><b>1 файл</b><span>для смены бренда</span></div>
       </section>
 
-      <section className="catalog-section" id="catalog">
-        <div className="section-heading">
-          <div>
-            <span className="kicker">ВЫБОР MR. MOPS</span>
-            <h2>Каталог</h2>
-          </div>
-          <span className="product-count">{filtered.length} товаров</span>
+      <section className="services-section" id="services">
+        <div className="section-intro">
+          <div><span className="kicker">КОНСТРУКТОР ПРОЕКТА</span><h2>Выберите основу<br />и нужные модули</h2></div>
+          <p>Добавьте решения в расчёт. Итоговую стоимость и сроки подтвердим после короткого созвона.</p>
         </div>
 
         <label className="search-box">
           <span aria-hidden="true">⌕</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти корм, игрушку…" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти пакет или функцию…" />
           {query && <button onClick={() => setQuery("")} aria-label="Очистить поиск">×</button>}
         </label>
 
-        <div className="category-row" aria-label="Категории товаров">
-          {categories.map((item) => (
-            <button
-              key={item.id}
-              className={category === item.id ? "active" : ""}
-              onClick={() => setCategory(item.id)}
-              aria-pressed={category === item.id}
-            >
+        <div className="category-row" aria-label="Категории решений">
+          {studioConfig.categories.map((item) => (
+            <button key={item.id} className={category === item.id ? "active" : ""} onClick={() => setCategory(item.id)} aria-pressed={category === item.id}>
               <span>{item.icon}</span>{item.label}
             </button>
           ))}
         </div>
 
         {filtered.length ? (
-          <div className="product-grid">
-            {filtered.map((product) => (
-              <article className="product-card" key={product.id}>
-                <div className="product-image-wrap">
-                  {product.badge && <span className="product-badge">{product.badge}</span>}
-                  <img src={assetUrl(product.image)} alt={product.name} loading="lazy" />
+          <div className="service-grid">
+            {filtered.map((service) => (
+              <article className="service-card" key={service.id}>
+                <div className={`service-visual accent-${service.accent}`}>
+                  {service.badge && <span className="service-badge">{service.badge}</span>}
+                  <b>{service.symbol}</b><i>↗</i>
                 </div>
-                <div className="product-info">
-                  <p>{product.short}</p>
-                  <h3>{product.name}</h3>
-                  <div className="product-buy">
-                    <strong>{money.format(product.price)} <small>сом</small></strong>
-                    <button onClick={() => addToCart(product)} aria-label={`Добавить ${product.name} в корзину`}>+</button>
-                  </div>
+                <div className="service-info">
+                  <p>{service.short}</p><h3>{service.name}</h3>
+                  <div><strong>от {money.format(service.price)} <small>{studioConfig.currency}</small></strong><button onClick={() => addToCart(service)} aria-label={`Добавить ${service.name} в расчёт`}>+</button></div>
                 </div>
               </article>
             ))}
           </div>
         ) : (
-          <div className="empty-search">
-            <span>🐾</span>
-            <h3>Такого товара пока не нашли</h3>
-            <p>Попробуйте другой запрос или напишите нам — поможем подобрать.</p>
-            <button onClick={() => { setQuery(""); setCategory("all"); }}>Показать всё</button>
-          </div>
+          <div className="empty-search"><span>⌕</span><h3>Ничего не найдено</h3><p>Сбросьте поиск или оставьте запрос — нестандартные функции тоже делаем.</p><button onClick={() => { setQuery(""); setCategory("all"); }}>Показать всё</button></div>
         )}
       </section>
 
-      <section className="delivery-banner" id="delivery">
-        <span className="kicker dark">ДОСТАВКА</span>
-        <h2>Пакуем с заботой.<br />Привозим быстро.</h2>
-        <div className="delivery-photo">
-          <img src={assetUrl("store/post-new-1.jpg")} alt="Условия доставки Mr. Mops" loading="lazy" />
+      <section className="showcase-section" id="showcase">
+        <div className="showcase-copy"><span className="kicker kicker-dark">ОДНА ОСНОВА — ЛЮБАЯ НИША</span><h2>Не шаблон.<br />Система продаж.</h2><p>Сайт выглядит как ваш бренд, а внутри уже готовы ключевые сценарии интернет-магазина.</p></div>
+        <div className="industry-cloud" aria-label="Подходящие сферы">
+          {studioConfig.industries.map((industry, index) => <span key={industry} className={`chip-${(index % 4) + 1}`}>{industry}</span>)}
         </div>
-        <div className="delivery-list">
-          <div><b>01</b><p><strong>По Бишкеку</strong><span>Через Яндекс. Стоимость рассчитывается по адресу.</span></p></div>
-          <div><b>02</b><p><strong>В регионы</strong><span>Курьерской службой. Заказ на следующий день — до 15:00.</span></p></div>
-          <div><b>03</b><p><strong>Самовывоз</strong><span>5 мкр., ул. Каралаева, 33/3, напротив маркета «Азия».</span></p></div>
+        <div className="feature-grid">
+          <article><span>01</span><h3>Каталог и поиск</h3><p>Категории, фильтры и карточки под ваш ассортимент.</p></article>
+          <article><span>02</span><h3>Корзина и заказ</h3><p>Понятный путь от товара до подтверждённой заявки.</p></article>
+          <article><span>03</span><h3>Telegram и CRM</h3><p>Менеджер получает данные клиента без ручного переноса.</p></article>
+          <article><span>04</span><h3>Оплата и доставка</h3><p>Подключаем подходящие бизнесу способы получения и оплаты.</p></article>
+        </div>
+      </section>
+
+      <section className="process-section" id="process">
+        <div className="section-intro"><div><span className="kicker">ПРОЦЕСС</span><h2>От идеи<br />до запуска</h2></div><p>Понятные этапы, фиксированный объём и демонстрация результата по ходу работы.</p></div>
+        <div className="process-list">
+          {studioConfig.process.map((step) => <article key={step.number}><b>{step.number}</b><div><h3>{step.title}</h3><p>{step.text}</p></div><span>↗</span></article>)}
         </div>
       </section>
 
       <section className="faq-section" id="faq">
-        <span className="kicker">ПОМОЩЬ</span>
-        <h2>Частые вопросы</h2>
+        <span className="kicker">БЕЗ МЕЛКОГО ШРИФТА</span><h2>Частые вопросы</h2>
         <div className="faq-list">
-          <details>
-            <summary>Как оформить заказ?<span>+</span></summary>
-            <p>Добавьте товары в корзину, укажите телефон и адрес. Заказ сразу поступит менеджеру Mr. Mops в Telegram.</p>
-          </details>
-          <details>
-            <summary>Можно подобрать корм вместе?<span>+</span></summary>
-            <p>Да. Оставьте комментарий к заказу или напишите в WhatsApp. Заказы, которым нужна консультация, принимаем до 16:00.</p>
-          </details>
-          <details>
-            <summary>Как оплатить?<span>+</span></summary>
-            <p>Наличными, переводом с карты или по QR-коду. Менеджер подтвердит доступный способ при согласовании заказа.</p>
-          </details>
-          <details>
-            <summary>Цены и наличие актуальны?<span>+</span></summary>
-            <p>Каталог регулярно обновляется, но итоговое наличие менеджер подтвердит перед доставкой.</p>
-          </details>
+          {studioConfig.faq.map((item) => <details key={item.question}><summary>{item.question}<span>+</span></summary><p>{item.answer}</p></details>)}
         </div>
       </section>
 
-      <section className="reviews-section">
-        <div className="section-heading light">
-          <div><span className="kicker dark">НАС ВЫБИРАЮТ</span><h2>4.8 из 5</h2></div>
-          <div className="stars" aria-label="Пять звезд">★★★★★</div>
-        </div>
-        <div className="review-cards">
-          <article><p>«Всегда помогают подобрать корм, всё объясняют спокойно и по делу. Доставка удобная.»</p><span>Покупатель Mr. Mops</span></article>
-          <article><p>«Большой выбор для кошек и собак. Нравится, что можно быстро уточнить наличие в WhatsApp.»</p><span>Покупатель Mr. Mops</span></article>
-        </div>
-        <a href="https://2gis.kg/bishkek/firm/70000001041670755/tab/reviews" target="_blank" rel="noreferrer">Отзывы в 2ГИС <span>↗</span></a>
-      </section>
-
-      <section className="contacts-section" id="contacts">
-        <img src={assetUrl("store/mrmops-logo.jpg")} alt="Логотип Mr. Mops" className="footer-logo" />
-        <span className="kicker">МЫ РЯДОМ</span>
-        <h2>Заглядывайте<br />в гости</h2>
-        <p className="address">5 мкр., ул. Каралаева, 33/3<br />Ежедневно, 10:00–20:00</p>
-        <div className="contact-links">
-          <a href="https://wa.me/996505112255" target="_blank" rel="noreferrer"><span>WhatsApp</span><b>+996 505 11 22 55</b></a>
-          <a href="https://www.instagram.com/mr.mops.kg/" target="_blank" rel="noreferrer"><span>Instagram</span><b>@mr.mops.kg</b></a>
-          <a href="https://2gis.kg/bishkek/firm/70000001041670755" target="_blank" rel="noreferrer"><span>Карта</span><b>Построить маршрут ↗</b></a>
-        </div>
-        <small className="legal">Цены и наличие товаров носят ознакомительный характер. © 2026 Mr. Mops KG</small>
+      <section className="final-cta">
+        <span className="kicker kicker-dark">ГОТОВЫ ПОКАЗАТЬ ВАШУ ВЕРСИЮ</span>
+        <h2>Ваш бизнес может<br />продавать <i>онлайн.</i></h2>
+        <p>Соберите примерный проект — заявка придёт напрямую владельцу студии в Telegram.</p>
+        <button className="button-primary light" onClick={() => scrollToId("services")}>Рассчитать проект <span>↗</span></button>
+        <div className="footer-line"><b>{studioConfig.brand.name}</b><span>Интернет-магазины • автоматизация • поддержка</span><small>© 2026</small></div>
       </section>
 
       <nav className="bottom-nav" aria-label="Основная навигация">
         <button onClick={() => scrollToId("home")}><span>⌂</span>Главная</button>
-        <button onClick={() => scrollToId("catalog")}><span>▦</span>Каталог</button>
-        <button onClick={() => scrollToId("delivery")}><span>⌁</span>Доставка</button>
-        <button onClick={() => setCartOpen(true)} className={cartCount ? "has-items" : ""}><span>🛍</span>Корзина{cartCount > 0 && <b>{cartCount}</b>}</button>
+        <button onClick={() => scrollToId("services")}><span>▦</span>Решения</button>
+        <button onClick={() => scrollToId("process")}><span>↗</span>Процесс</button>
+        <button onClick={() => setCartOpen(true)} className={cartCount ? "has-items" : ""}><span>＋</span>Расчёт{cartCount > 0 && <b>{cartCount}</b>}</button>
       </nav>
 
       {cartOpen && (
         <div className="modal-layer" role="presentation" onMouseDown={() => setCartOpen(false)}>
           <aside className="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="drawer-head"><div><span className="kicker">ВАШ ЗАКАЗ</span><h2 id="cart-title">Корзина</h2></div><button onClick={() => setCartOpen(false)} aria-label="Закрыть корзину">×</button></div>
-            {cartLines.length ? (
-              <>
-                <div className="cart-lines">
-                  {cartLines.map((line) => (
-                    <article key={line.id}>
-                      <img src={assetUrl(line.image)} alt="" />
-                      <div><h3>{line.name}</h3><span>{money.format(line.price)} сом</span></div>
-                      <div className="quantity"><button onClick={() => updateQuantity(line.id, -1)} aria-label="Уменьшить количество">−</button><b>{line.quantity}</b><button onClick={() => updateQuantity(line.id, 1)} aria-label="Увеличить количество">+</button></div>
-                    </article>
-                  ))}
-                </div>
-                <div className="cart-total"><span>Товары</span><strong>{money.format(subtotal)} сом</strong><small>Доставка рассчитывается отдельно</small></div>
-                <button className="primary-action" onClick={openCheckout}>Оформить заказ <span>→</span></button>
-              </>
-            ) : (
-              <div className="empty-cart"><span>🦴</span><h3>Корзина пока пустая</h3><p>Добавьте любимцу что-нибудь вкусное или веселое.</p><button onClick={() => { setCartOpen(false); scrollToId("catalog"); }}>Перейти в каталог</button></div>
-            )}
+            <div className="drawer-head"><div><span className="kicker">ВАШ ПРОЕКТ</span><h2 id="cart-title">Расчёт</h2></div><button onClick={() => setCartOpen(false)} aria-label="Закрыть расчёт">×</button></div>
+            {cartLines.length ? <>
+              <div className="cart-lines">{cartLines.map((line) => <article key={line.id}><span className={`mini-symbol accent-${line.accent}`}>{line.symbol}</span><div><h3>{line.name}</h3><span>от {money.format(line.price)} сом</span></div><div className="quantity"><button onClick={() => updateQuantity(line.id, -1)} aria-label="Уменьшить количество">−</button><b>{line.quantity}</b><button onClick={() => updateQuantity(line.id, 1)} aria-label="Увеличить количество">+</button></div></article>)}</div>
+              <div className="cart-total"><span>Предварительно</span><strong>от {money.format(subtotal)} сом</strong><small>Точная смета после уточнения задач</small></div>
+              <button className="button-primary wide" onClick={openCheckout}>Отправить на расчёт <span>↗</span></button>
+            </> : <div className="empty-cart"><span>＋</span><h3>Проект пока пуст</h3><p>Выберите пакет и нужные функции — мы соберём предварительный расчёт.</p><button onClick={() => { setCartOpen(false); scrollToId("services"); }}>Выбрать решения</button></div>}
           </aside>
         </div>
       )}
@@ -397,29 +272,21 @@ export default function Home() {
       {checkoutOpen && (
         <div className="modal-layer checkout-layer" role="presentation" onMouseDown={() => !submitting && setCheckoutOpen(false)}>
           <section className="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="drawer-head"><div><span className="kicker">ПОЧТИ ГОТОВО</span><h2 id="checkout-title">Оформление</h2></div><button onClick={() => setCheckoutOpen(false)} aria-label="Закрыть оформление">×</button></div>
-            {orderId ? (
-              <div className="order-success">
-                <span>✓</span>
-                <h3>Заказ отправлен!</h3>
-                <p>Менеджер Mr. Mops получил заказ <b>#{orderId}</b> и скоро свяжется с вами.</p>
-                <button className="primary-action" onClick={() => setCheckoutOpen(false)}>Отлично</button>
-              </div>
-            ) : (
-              <form onSubmit={submitOrder}>
-                <label><span>Имя</span><input name="name" required maxLength={80} placeholder="Как к вам обращаться?" autoComplete="name" /></label>
+            <div className="drawer-head"><div><span className="kicker">ПОЧТИ ГОТОВО</span><h2 id="checkout-title">Заявка</h2></div><button onClick={() => setCheckoutOpen(false)} aria-label="Закрыть форму">×</button></div>
+            {orderId ? <div className="order-success"><span>✓</span><h3>Заявка отправлена!</h3><p>Проект <b>#{orderId}</b> уже в Telegram. Свяжемся с вами, чтобы уточнить задачи.</p><button className="button-primary wide" onClick={() => setCheckoutOpen(false)}>Готово</button></div> :
+              <form onSubmit={submitRequest}>
+                <label><span>Ваше имя</span><input name="name" required maxLength={80} placeholder="Как к вам обращаться?" autoComplete="name" /></label>
                 <label><span>Телефон</span><input name="phone" required maxLength={30} placeholder="+996 ___ __ __ __" inputMode="tel" autoComplete="tel" /></label>
-                <label><span>Получение</span><select name="delivery" defaultValue="Доставка по Бишкеку"><option>Доставка по Бишкеку</option><option>Самовывоз</option><option>Доставка в регион</option></select></label>
-                <label><span>Адрес или район</span><input name="address" required maxLength={180} placeholder="Например: 7 мкр., дом 21" autoComplete="street-address" /></label>
-                <label><span>Оплата</span><select name="payment"><option>Согласовать с менеджером</option><option>Наличными</option><option>Перевод / QR</option></select></label>
-                <label><span>Комментарий</span><textarea name="comment" maxLength={500} placeholder="Вкус корма, подъезд, удобное время…" rows={3} /></label>
+                <label><span>Компания или сфера</span><input name="address" required maxLength={180} placeholder="Например: магазин одежды" /></label>
+                <label><span>Формат проекта</span><select name="delivery" defaultValue="Интернет-магазин"><option>Интернет-магазин</option><option>Каталог с заявками</option><option>Корпоративный сайт</option><option>Нужна консультация</option></select></label>
+                <label><span>Ориентир по бюджету</span><select name="payment"><option>Нужно рассчитать</option><option>До 30 000 сом</option><option>30 000–60 000 сом</option><option>От 60 000 сом</option></select></label>
+                <label><span>Комментарий</span><textarea name="comment" maxLength={500} placeholder="Что продаёте и какие функции нужны?" rows={3} /></label>
                 <label className="website-field" aria-hidden="true"><span>Сайт</span><input name="website" tabIndex={-1} autoComplete="off" /></label>
-                <div className="checkout-summary"><span>{cartCount} шт.</span><strong>{money.format(subtotal)} сом</strong></div>
+                <div className="checkout-summary"><span>{cartCount} поз.</span><strong>от {money.format(subtotal)} сом</strong></div>
                 {error && <p className="form-error">{error}</p>}
-                <button className="primary-action" disabled={submitting}>{submitting ? "Отправляем…" : "Подтвердить заказ"}<span>→</span></button>
-                <small>Нажимая кнопку, вы соглашаетесь на обработку данных для оформления заказа.</small>
-              </form>
-            )}
+                <button className="button-primary wide" disabled={submitting}>{submitting ? "Отправляем…" : "Получить расчёт"}<span>↗</span></button>
+                <small>{studioConfig.brand.telegramLabel}. Нажимая кнопку, вы соглашаетесь на обработку данных.</small>
+              </form>}
           </section>
         </div>
       )}
